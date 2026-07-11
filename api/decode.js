@@ -185,46 +185,34 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const ua = 'Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
-  const { page: pageUrl, url: fontUrl } = req.query;
+  const { url: fontUrl, b64: fontB64, page: pageUrl } = req.query;
 
   try {
     let fontBuf;
 
-    if (pageUrl) {
-      // 模式1: ?page=章节URL → 全自动: 抓页面→CSS→字体→解析
-      const pageHtml = await fetchAsText(pageUrl, { 'Accept': 'text/html' });
-
-      const cm = pageHtml.match(/href="([^"]*AntiScraping\/css\/[^"]*\.css)"/);
-      if (!cm) throw new Error('CSS not found in page');
-      const cssUrl = cm[1].startsWith('http') ? cm[1] : 'https://tongquet.com' + cm[1];
-
-      const css = await fetchAsText(cssUrl, { 'Referer': pageUrl });
-
-      const fm = css.match(/url\('([^']*\.woff2)'\)/);
-      if (!fm) throw new Error('Font URL not found in CSS');
-      const foundFontUrl = fm[1].startsWith('http') ? fm[1] : 'https://tongquet.com' + fm[1];
-
-      fontBuf = await fetchAsBuffer(foundFontUrl, {
-        'Referer': cssUrl, 'Origin': 'https://tongquet.com'
-      });
+    if (fontB64) {
+      // 模式1: ?b64=base64字体数据 → Legado 编码后传给 Vercel 解析
+      const binaryStr = atob(fontB64);
+      const buf = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) buf[i] = binaryStr.charCodeAt(i);
+      fontBuf = buf;
     } else if (fontUrl) {
-      // 模式2: ?url=字体URL → 直接下载字体解析（传统模式）
+      // 模式2: ?url=字体URL → Vercel 直接下载字体解析
       fontBuf = await fetchAsBuffer(fontUrl, {
-        'Referer': 'https://tongquet.com', 'Origin': 'https://tongquet.com'
+        'Referer': 'https://tongquet.com', 'Origin': 'https://tongquet.com',
+        'User-Agent': ua, 'Accept': 'application/font-woff2,*/*'
       });
+    } else if (pageUrl) {
+      // 模式3: ?page=章节URL → Vercel 全自动获取
+      return res.json({ error: 'Vercel IP blocked by tongquet.com, use ?b64= mode instead' });
     } else {
-      return res.status(400).json({ error: 'Missing ?page=<chapter_url> or ?url=<font_url>' });
+      return res.status(400).json({ error: 'Missing ?url= or ?b64=' });
     }
 
-    // wawoff2 解压
     const ttfBuf = await wawoff2.decompress(fontBuf);
-    // 解析 cmap 映射
     const mapping = parseTTFCmap(new Uint8Array(ttfBuf));
 
-    res.json({
-      mapping,
-      count: Object.keys(mapping).length
-    });
+    res.json({ mapping, count: Object.keys(mapping).length });
   } catch (e) {
     res.status(500).json({
       error: e.message,

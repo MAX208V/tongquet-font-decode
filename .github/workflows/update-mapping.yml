@@ -1,0 +1,26 @@
+name: Update Font Mapping
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时
+  workflow_dispatch:        # 可手动触发
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install fonttools brotli
+
+      - name: Update mapping
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: '5d7d0fcdc929a2bd1491c8924d0a587a'
+          CHAPTER_URL: 'https://tongquet.com/book/bjZ12/luo-bing-yin-chuan/2Ro1j'
+        run: python scripts/update-mapping.py
