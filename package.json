@@ -1,0 +1,17 @@
+{
+  "name": "tongquet-font-decode",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vercel Serverless Function for decoding tongquet.com woff2 font mappings",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "wawoff2": "^2.0.1"
+  }
+}
