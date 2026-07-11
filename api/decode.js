@@ -184,29 +184,26 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const ua = 'Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
-  const { url: fontUrl, b64: fontB64, page: pageUrl } = req.query;
-
   try {
     let fontBuf;
 
-    if (fontB64) {
-      // 模式1: ?b64=base64字体数据 → Legado 编码后传给 Vercel 解析
-      const binaryStr = atob(fontB64);
+    // 模式1: POST body = base64 字体数据 (Legado 通过 Java 发送)
+    if (req.method === 'POST' && req.body) {
+      const b64 = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      const binaryStr = atob(b64);
       const buf = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) buf[i] = binaryStr.charCodeAt(i);
       fontBuf = buf;
-    } else if (fontUrl) {
-      // 模式2: ?url=字体URL → Vercel 直接下载字体解析
-      fontBuf = await fetchAsBuffer(fontUrl, {
-        'Referer': 'https://tongquet.com', 'Origin': 'https://tongquet.com',
-        'User-Agent': ua, 'Accept': 'application/font-woff2,*/*'
-      });
-    } else if (pageUrl) {
-      // 模式3: ?page=章节URL → Vercel 全自动获取
-      return res.json({ error: 'Vercel IP blocked by tongquet.com, use ?b64= mode instead' });
-    } else {
-      return res.status(400).json({ error: 'Missing ?url= or ?b64=' });
+    }
+    // 模式2: ?b64=base64字体数据 (GET)
+    else if (req.query?.b64) {
+      const binaryStr = atob(req.query.b64);
+      const buf = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) buf[i] = binaryStr.charCodeAt(i);
+      fontBuf = buf;
+    }
+    else {
+      return res.status(400).json({ error: 'POST base64 body or ?b64= required' });
     }
 
     const ttfBuf = await wawoff2.decompress(fontBuf);
